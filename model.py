@@ -157,27 +157,132 @@ def get_vec(v,flag):
     if flag == 0:
         return
 
-# update target vertex
-def update_vertex(source,target,error,label,flag):
+
+# update user-item target vertex
+def update_user_item_vertex(source,target,error,label,flag):
     if flag == 0:
         source_emb = user_emb.get(source)
         target_emb = item_emb.get(target)
-        score = sigmoid(source_emb*target_emb)
-        g = (label-score)*lr
+        score = sigmoid(source_emb * target_emb)
+        g = (label - score) * lr
         # total error for source vertex
-        error += g*target_emb
-        new_vec = target_emb + g*source_emb
+        error += g * target_emb
+        new_vec = target_emb + g * source_emb
         item_emb[target] = new_vec
+    elif flag == 1:
+        source_emb = item_emb.get(source)
+        target_emb = user_emb.get(target)
+        score = sigmoid(source_emb * target_emb)
+        g = (label - score) * lr
+        # total error for source vertex
+        error += g * target_emb
+        new_vec = target_emb + g * source_emb
+        user_emb[target] = new_vec
+
+
+def cal_group_emb(members):
+    sum_weight = 0
+    weight_dict = dict()
+    for member1 in members:
+        weight_dict[member1] = 0
+        for member2 in members:
+            if member1 != member2:
+                weight = luser_emb.get(member1) * ruser_emb.get(member2)
+                sum_weight += weight
+                weight_dict[member1] += weight
+    group_emb = np.zeros(DIM,)
+    for member,weight in weight_dict.items():
+        group_emb += weight*user_emb.get(member)
+    return group_emb
+
+
+def cal_group_totalweight(members):
+    sum_weight = 0
+    for member1 in members:
+        for member2 in members:
+            if member1 != member2:
+                sum_weight += luser_emb.get(member1).dot(ruser_emb.get(member2))
+    return sum_weight
+
+
+def update_user_influ_emb(members,itemv_emb,g):
+    for member1 in members:
+        # update every member's luser and ruser embedding
+        sum_weight = cal_group_totalweight(members)
+        xr = np.zeros(DIM,)
+        for other_member in members:
+            if other_member != member1:
+                xr += ruser_emb.get(other_member)
+        g_luser_vector = np.zeros(DIM,)
+        for member2 in members:
+            if member1 == member2:
+                g_luser_vector += (xr*sum_weight-luser_emb.get(member1).dot(xr)*xr).dot(user_emb.get(member1))
+            else:
+                x_r = np.zeros(DIM,)
+                for member3 in member3:
+                    if member3 != member2:
+                        x_r += ruser_emb.get(member3)
+                g_luser_vector += (0 - luser_emb.get(member2).dot(x_r)*xr).dot(user_emb.get(member2))
+        g_luser_vector = g_luser_vector / (sum_weight*sum_weight)*itemv_emb
+        luser_emb[member1] = luser_emb.get(member1)+g*g_luser_vector
+
+        # update ruser embedding
+        sum_weight = cal_group_totalweight(members)
+        xl = np.zeros(DIM,)
+        for other_member in member3:
+            if other_member != member1:
+                xl += luser_emb.get(other_member)
+        g_ruser_vector = np.zeros(DIM,)
+        for member2 in members:
+
+
+
+
+
+def update_group_item_vertex(source,target,error,label,flag):
+    if flag == 0:
+        members = group_users.get(source)
+        source_emb = cal_group_emb(members)
+        target_emb = item_emb.get(target)
+        score = sigmoid(source_emb * target_emb)
+        g = (label - score) * lr
+        # total error for source vertex
+        error += g * target_emb
+        new_vec = target_emb + g * source_emb
+        item_emb[target] = new_vec
+    else:
+        source_emb = item_emb.get(source)
+        members = group_users.get(target)
+        target_emb = cal_group_emb(members)
+        score = sigmoid(source_emb*target_emb)
+        g = (label - score) * lr
+        error += g * target_emb
+        # update user influence embedding
+        update_user_influ_emb(members,source_emb,g)
 
 
 # update vertices according to an edge
-def update(source,target,neg_vertices,flag):
+def update_user_item(source,target,neg_vertices,flag):
     error = np.zeros(DIM,)
-    update_vertex(source,target,error,1,flag)
+    update_user_item_vertex(source,target,error,1,flag)
+    M = len(neg_vertices)
+    if M != 0:
+        for i in range(M):
+            update_user_item_vertex(source,neg_vertices[i],error,0,0)
+    if flag == 0:
+        new_vector = user_emb.get(source) + error
+        user_emb[source] = new_vector
+    else:
+        new_vector = item_emb.get(source) + error
+        item_emb[source] = new_vector
 
+
+def update_group_item(source,target,neg_vertices,flag):
+    error = np.zeros(DIM,)
+    update_group_item_vertex(source,target,error,1,flag)
 
 # fix source, sample targets
-def neg_sample(source,target,source_nei,flag):
+def neg_sample_user_item(source,target,source_nei,flag):
     if flag == 0:
         base_list = itematuser_list
         base_sample = pop_itematuser_sample
@@ -194,17 +299,46 @@ def neg_sample(source,target,source_nei,flag):
                 neg_vertices.append(sample_v)
         else: break
         record += 1
-    update(source,target,neg_vertices,flag)
+    update_user_item(source,target,neg_vertices,flag)
 
 
-def training(tuple_list,user_nei,item_nei):
+def neg_sample_group_item(source,target,source_nei,flag):
+    if flag == 0:
+        base_list = itematgroup_list
+        base_sample = pop_itematgroup_sample
+    else:
+        base_list = group_list
+        base_sample = pop_group_sample
+    # sample M negative vertices
+    neg_vertices = list()
+    record = 0
+    while len(neg_vertices) < NEG_N:
+        if record < len(base_list):
+            sample_v = draw_vertex(base_list,base_sample)
+            if sample_v not in source_nei.get(source) and sample_v not in neg_vertices:
+                neg_vertices.append(sample_v)
+        else: break
+        record += 1
+    update_group_item(source,target,neg_vertices,flag)
+
+
+
+def training_user_item(tuple_list,user_nei,item_nei):
     t = draw_tuple(tuple_list)
     v1 = t[0]
     v2 = t[1]
     # fix user, sample items
-    neg_sample(v1,v2,user_nei,0)
+    neg_sample_user_item(v1,v2,user_nei,0)
     # fix item, sample users
-    neg_sample(v2,v1,itematuser_nei,1)
+    neg_sample_user_item(v2,v1,item_nei,1)
+
+
+def training_group_item(tuple_list,group_nei,item_nei):
+    t = draw_tuple(tuple_list)
+    v1 = t[0]
+    v2 = t[1]
+    # fix group, sample items
+    neg_sample_group_item(v1,v2,group_nei,0)
 
 # training
 def train_data():
@@ -225,7 +359,8 @@ def train_data():
             write_to_file(out_item+str(iter),item_emb)
             write_to_file(out_luser+str(iter),luser_emb)
             write_to_file(out_ruser+str(iter),ruser_emb)
-        training(all_edges_1,user_nei,itematuser_list)
+        training_user_item(all_edges_1,user_nei,itematuser_nei)
+        training_group_item(all_edges_2,group_nei,itematgroup_nei)
 
 
 if __name__=="__main__":
