@@ -51,19 +51,19 @@ sigmoid_table_size = 1000
 sig_map = dict()
 
 #input files
-inputdata1 = "data\\dataset\\train_userid_eventid.dat"
-inputdata2 = "data\\dataset\\train_groupid_eventid.dat"
-inputdata3 = "data\\dataset\\groupid_userid.dat"
-out_user = "data\\vectors\\user.csv"
-out_item = "data\\vectors\\item.csv"
-out_luser = "data\\vectors\\luser.csv"
-out_ruser = "data\\vectors\\ruser.csv"
+inputdata1 = "data\\dataset\\kaggle\\train_user_event.dat"
+inputdata2 = "data\\dataset\\kaggle\\train_groupid_event.dat"
+inputdata3 = "data\\dataset\\kagle\\groupid_users.dat"
+out_user = "data\\vectors\\kaggle\\user"
+out_item = "data\\vectors\\kaggle\\item"
+out_luser = "data\\vectors\\kaggle\\luser"
+out_ruser = "data\\vectors\\kaggle\\ruser"
 
 #初始化所有边，所有顶点的度数以及所有顶点的邻居
 
 user_degree,itematuser_degree,user_nei,itematuser_nei,all_edges_1 = read_file(inputdata1,["userid","eventid"])
 group_degree,itematgroup_degree,group_nei,itematgroup_nei,all_edges_2 = read_file(inputdata2,["groupid","eventid"])
-group_users = get_group_users(inputdata3,["groupid","userid"])
+group_users = get_group_users(inputdata3,["groupid","users"])
 print("user set:%d ,item set:%d, group set:%d" %(len(user_degree.keys()),len(itematuser_degree.keys()),len(group_degree.keys())) )
 user_list = list(user_degree.keys())
 itematuser_list = list(itematuser_degree.keys())
@@ -223,7 +223,7 @@ def update_user_influ_emb(members,itemv_emb,g):
                     if member3 != member2:
                         x_r += ruser_emb.get(member3)
                 g_luser_vector += (0 - luser_emb.get(member2).dot(x_r)*xr).dot(user_emb.get(member2))
-        g_luser_vector = g_luser_vector / (sum_weight*sum_weight)*itemv_emb
+        g_luser_vector = (g_luser_vector / (sum_weight*sum_weight)).dot(itemv_emb)
         luser_emb[member1] = luser_emb.get(member1)+g*g_luser_vector
 
         # update ruser embedding
@@ -234,31 +234,28 @@ def update_user_influ_emb(members,itemv_emb,g):
                 xl += luser_emb.get(other_member)
         g_ruser_vector = np.zeros(DIM,)
         for member2 in members:
+            self_emb = np.zeros(DIM, )
+            for member in members:
+                if member != member2:
+                    self_emb += ruser_emb.get(member)
+            if member2 == member1:
+                self_emb = 0-luser_emb.get(member2).dot(self_emb)*xl.dot(user_emb.get(member2))
+                g_ruser_vector += self_emb
+            else:
+                g_ruser_vector += (luser_emb.get(member2)*sum_weight - luser_emb.get(member2).dot(self_emb)*xl).dot(user_emb.get(member2))
+        g_ruser_vector = (g_ruser_vector/(sum_weight*sum_weight)).dot(itemv_emb)
+        ruser_emb[member1] = ruser_emb.get(member1) + g*g_ruser_vector
 
 
-
-
-
-def update_group_item_vertex(source,target,error,label,flag):
-    if flag == 0:
-        members = group_users.get(source)
-        source_emb = cal_group_emb(members)
-        target_emb = item_emb.get(target)
-        score = sigmoid(source_emb * target_emb)
-        g = (label - score) * lr
-        # total error for source vertex
-        error += g * target_emb
-        new_vec = target_emb + g * source_emb
-        item_emb[target] = new_vec
-    else:
-        source_emb = item_emb.get(source)
-        members = group_users.get(target)
-        target_emb = cal_group_emb(members)
-        score = sigmoid(source_emb*target_emb)
-        g = (label - score) * lr
-        error += g * target_emb
-        # update user influence embedding
-        update_user_influ_emb(members,source_emb,g)
+def update_group_item_vertex(source,target,error,label):
+    source_emb = item_emb.get(source)
+    members = group_users.get(target)
+    target_emb = cal_group_emb(members)
+    score = sigmoid(source_emb*target_emb)
+    g = (label - score) * lr
+    error += g * target_emb
+    # update user influence embedding
+    update_user_influ_emb(members,source_emb,g)
 
 
 # update vertices according to an edge
@@ -268,7 +265,7 @@ def update_user_item(source,target,neg_vertices,flag):
     M = len(neg_vertices)
     if M != 0:
         for i in range(M):
-            update_user_item_vertex(source,neg_vertices[i],error,0,0)
+            update_user_item_vertex(source,neg_vertices[i],error,0,flag)
     if flag == 0:
         new_vector = user_emb.get(source) + error
         user_emb[source] = new_vector
@@ -276,10 +273,81 @@ def update_user_item(source,target,neg_vertices,flag):
         new_vector = item_emb.get(source) + error
         item_emb[source] = new_vector
 
+def update_item_vertex_in_group(source,target,luser_error,ruser_error,label):
+    members = group_users.get(source)
+    source_emb = cal_group_emb(members)
+    target_emb = item_emb.get(target)
+    score = sigmoid(source_emb * target_emb)
+    g = (label - score) * lr
+    new_vec = target_emb + g * source_emb
+    item_emb[target] = new_vec
+    # total error for luser and ruser vertex
+    for member1 in members:
+        # update every member's luser and ruser embedding
+        sum_weight = cal_group_totalweight(members)
+        xr = np.zeros(DIM,)
+        for other_member in members:
+            if other_member != member1:
+                xr += ruser_emb.get(other_member)
+        g_luser_vector = np.zeros(DIM,)
+        for member2 in members:
+            if member1 == member2:
+                g_luser_vector += (xr*sum_weight-luser_emb.get(member1).dot(xr)*xr).dot(user_emb.get(member1))
+            else:
+                x_r = np.zeros(DIM,)
+                for member3 in member3:
+                    if member3 != member2:
+                        x_r += ruser_emb.get(member3)
+                g_luser_vector += (0 - luser_emb.get(member2).dot(x_r)*xr).dot(user_emb.get(member2))
+        g_luser_error = (g_luser_vector / (sum_weight*sum_weight)).dot(target_emb)*g
+        luser_error[member1] = g_luser_error
+
+        xl = np.zeros(DIM, )
+        for other_member in member3:
+            if other_member != member1:
+                xl += luser_emb.get(other_member)
+        g_ruser_vector = np.zeros(DIM, )
+        for member2 in members:
+            self_emb = np.zeros(DIM, )
+            for member in members:
+                if member != member2:
+                    self_emb += ruser_emb.get(member)
+            if member2 == member1:
+                self_emb = 0 - luser_emb.get(member2).dot(self_emb) * xl.dot(user_emb.get(member2))
+                g_ruser_vector += self_emb
+            else:
+                g_ruser_vector += (luser_emb.get(member2) * sum_weight - luser_emb.get(member2).dot(self_emb) * xl).dot(
+                    user_emb.get(member2))
+        g_ruser_error = ((g_ruser_vector / (sum_weight * sum_weight)).dot(target_emb))*g
+        ruser_error[member1] = g_ruser_error
+
 
 def update_group_item(source,target,neg_vertices,flag):
-    error = np.zeros(DIM,)
-    update_group_item_vertex(source,target,error,1,flag)
+    if flag == 0:
+        luser_error_dict = dict()
+        ruser_error_dict = dict()
+        members = group_users.get(source)
+        for m in members:
+            luser_error_dict[m] = np.zeros(DIM,)
+            ruser_error_dict[m] = np.zeros(DIM,)
+            update_item_vertex_in_group(source, target, luser_error_dict,ruser_error_dict, 1)
+        M = len(neg_vertices)
+        if M != 0:
+            for i in range(M):
+                update_item_vertex_in_group(source, neg_vertices[i],luser_error_dict,ruser_error_dict, 0)
+        for member in members:
+            luser_emb[member] += luser_error_dict[member]
+            ruser_emb[member] += ruser_error_dict[member]
+    else:
+        error = np.zeros(DIM,)
+        update_group_item_vertex(source, target, error, 1)
+        M = len(neg_vertices)
+        if M != 0:
+            for i in range(M):
+                update_group_item_vertex(source, neg_vertices[i], error, 0)
+        new_vector = item_emb.get(source) + error
+        item_emb[source] = new_vector
+
 
 # fix source, sample targets
 def neg_sample_user_item(source,target,source_nei,flag):
@@ -367,3 +435,9 @@ if __name__=="__main__":
     get_pop_pro()
     init_all_vec()
     init_sigmod_table()
+    train_data()
+    print("training finished")
+    write_to_file(out_user,user_emb)
+    write_to_file(out_item,item_emb)
+    write_to_file(out_luser,luser_emb)
+    write_to_file(out_ruser,ruser_emb)
