@@ -23,7 +23,7 @@ def get_group_users(inputfile,col_names=["groupid","users"],sep="\t"):
     df = pd.read_csv(inputfile,sep=sep,names=col_names,engine="python")
     group_users = dict()
     for index,row in df.iterrows():
-        group_users[row["groupid"]] = list(str(row["users"]).strip().split(" "))
+        group_users[row["groupid"]] = [int(member) for member in list(str(row["users"]).strip().split(" "))]
     return group_users
 
 def write_to_file(filename,ver_emb):
