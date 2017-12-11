@@ -7,7 +7,8 @@ N = 100000000
 NEG_N = 2 #number of negative samples
 init_lr = 0.025
 lr = init_lr
-
+ita = 0.7
+gama = 0
 #vertices and their degrees
 user_degree = dict()
 itematuser_degree = dict()
@@ -25,13 +26,18 @@ all_item_v = set()
 all_luser_v = set()
 all_ruser_v = set()
 
-#vertex sample table
+# vertex sample table
 pop_user_sample = list()
 pop_itematuser_sample = list()
 pop_group_sample = list()
 pop_itematgroup_sample = list()
+# neg vertex sample table
+itematuser_neg_table = list()
+itematgroup_neg_table = list()
+neg_table_size = 1e8
+neg_sampling_power = 0.75
 
-#vertex and its neighbours
+# vertex and its neighbours
 user_nei = dict()
 itematuser_nei = dict()
 group_nei = dict()
@@ -74,6 +80,30 @@ itematuser_list = list(itematuser_degree.keys())
 group_list = list(group_degree.keys())
 itematgroup_list = list(itematgroup_degree.keys())
 
+
+# 初始化所有负采样表
+def init_vertex_neg_table(vertex_neg_table,vertex_degree,vertex_list)
+    sum = 0.0,
+    cur_num = 0.0
+    por = 0.0
+    vid = 0
+    for vertex, degree in vertex_degree:
+        sum += math.pow(degree, neg_sampling_power)
+    for k in range(neg_table_size):
+        if float(k + 1) / neg_table_size > por:
+            cur_num += math.pow(vertex_degree.get(vertex_list[vid]), neg_sampling_power)
+            por = cur_num / sum
+            vid += 1
+        vertex_neg_table[k] = vertex_list[vid - 1]
+
+
+# 初始化负采样表
+def init_neg_table():
+    init_vertex_neg_table(itematuser_neg_table,itematuser_degree,itematuser_list)
+    init_vertex_neg_table(itematgroup_neg_table, itematgroup_degree, itematgroup_list)
+
+
+
 def cal_pop_pro(vertex_list,vertex_degree,sample_list):
     totalweight = sum(vertex_degree.values())
     sample_list.append(float(vertex_degree[vertex_list[0]])/totalweight)
@@ -81,12 +111,28 @@ def cal_pop_pro(vertex_list,vertex_degree,sample_list):
         sample_list.append(sample_list[-1] + float(vertex_degree[vertex])/totalweight)
     sample_list[-1] = 1.0
 
+
+def cal_pop_pro_in_group(vertex_list,vertex_nei,group_sample_list_dict):
+    for group,members in group_users.items():
+        group_sample_list_dict[group] = list()
+        for item in itematgroup_list:
+            sum = 0.0
+            for member in members:
+                if member in vertex_nei[item]:
+                    sum += 1
+
+    totalweight = sum(vertex_degree.values())
+    sample_list.append(float(vertex_degree[vertex_list[0]])/totalweight)
+    for vertex in vertex_list[1:]:
+        sample_list.append(sample_list[-1] + float(vertex_degree[vertex])/totalweight)
+    sample_list[-1] = 1.0
+
+
 #initial sample table
 def get_pop_pro():
-    cal_pop_pro(user_list,user_degree,pop_user_sample)
     cal_pop_pro(itematuser_list,itematuser_degree,pop_itematuser_sample)
-    cal_pop_pro(group_list, group_degree, pop_group_sample)
-    cal_pop_pro(itematgroup_list, itematgroup_degree, pop_itematgroup_sample)
+    cal_pop_pro_in_group(itematgroup_list, itematgroup_degree, pop_itematgroup_sample)
+
 
 def gen_gaussian():
     max_value = 32767
@@ -95,10 +141,13 @@ def gen_gaussian():
         vector[i] = (random.randint(0,max_value)*1.0/max_value-0.5)/DIM
     return vector
 
+
 def init_vec(vec_list,vec_emb_dict):
     for vec in vec_list:
         vec_emb_dict[vec] = gen_gaussian()
-#initial vertices' embedding
+
+
+# initial vertices' embedding
 def init_all_vec():
     init_vec(user_list,user_emb)
     init_vec(itematuser_list,item_emb)
@@ -138,25 +187,15 @@ def sigmoid(x):
 
 
 # update user-item target vertex
-def update_user_item_vertex(source,target,error,label,flag):
-    if flag == 0:
-        source_emb = user_emb.get(source)
-        target_emb = item_emb.get(target)
-        score = sigmoid(source_emb.dot(target_emb))
-        g = (label - score) * lr
-        # total error for source vertex
-        error += g * target_emb
-        new_vec = target_emb + g * source_emb
-        item_emb[target] = new_vec
-    elif flag == 1:
-        source_emb = item_emb.get(source)
-        target_emb = user_emb.get(target)
-        score = sigmoid(source_emb.dot(target_emb))
-        g = (label - score) * lr
-        # total error for source vertex
-        error += g * target_emb
-        new_vec = target_emb + g * source_emb
-        user_emb[target] = new_vec
+def update_user_item_vertex(source,target,error,label):
+    source_emb = user_emb.get(source)
+    target_emb = item_emb.get(target)
+    score = sigmoid(math.pow(-1,label)*source_emb.dot(target_emb))
+    g = math.pow(-1,label) * score * lr
+    # total error for source vertex
+    error += g * target_emb
+    new_vec = target_emb + g * source_emb
+    item_emb[target] = new_vec
 
 
 def cal_group_emb(members):
@@ -239,19 +278,15 @@ def update_group_item_vertex(source,target,error,label):
 
 
 # update vertices according to an edge
-def update_user_item(source,target,neg_vertices,flag):
+def update_user_item(source,target,neg_vertices):
     error = np.zeros(DIM,)
-    update_user_item_vertex(source,target,error,1,flag)
+    update_user_item_vertex(source,target,error,1)
     M = len(neg_vertices)
     if M != 0:
         for i in range(M):
-            update_user_item_vertex(source,neg_vertices[i],error,0,flag)
-    if flag == 0:
-        new_vector = user_emb.get(source) + error
-        user_emb[source] = new_vector
-    else:
-        new_vector = item_emb.get(source) + error
-        item_emb[source] = new_vector
+            update_user_item_vertex(source,neg_vertices[i],error,0)
+    new_vector = user_emb.get(source) + error
+    user_emb[source] = new_vector
 
 
 def update_item_vertex_in_group(source,target,luser_error,ruser_error,label):
@@ -331,13 +366,9 @@ def update_group_item(source,target,neg_vertices,flag):
 
 
 # fix source, sample targets
-def neg_sample_user_item(source,target,source_nei,flag):
-    if flag == 0:
-        base_list = itematuser_list
-        base_sample = pop_itematuser_sample
-    else:
-        base_list = user_list
-        base_sample = pop_user_sample
+def neg_sample_user_item(source,target,source_nei):
+    base_list = itematuser_list
+    base_sample = pop_itematuser_sample
     # sample M negative vertices
     neg_vertices = list()
     record = 0
@@ -348,16 +379,13 @@ def neg_sample_user_item(source,target,source_nei,flag):
                 neg_vertices.append(sample_v)
         else: break
         record += 1
-    update_user_item(source,target,neg_vertices,flag)
+    update_user_item(source,target,neg_vertices)
 
 
-def neg_sample_group_item(source,target,source_nei,flag):
-    if flag == 0:
-        base_list = itematgroup_list
-        base_sample = pop_itematgroup_sample
-    else:
-        base_list = group_list
-        base_sample = pop_group_sample
+def neg_sample_group_item(source,target,source_nei):
+    base_list = itematgroup_list
+    base_sample = pop_itematgroup_sample
+
     # sample M negative vertices
     neg_vertices = list()
     record = 0
@@ -372,14 +400,12 @@ def neg_sample_group_item(source,target,source_nei,flag):
 
 
 
-def training_user_item(tuple_list,user_nei,item_nei):
+def training_user_item(tuple_list,user_nei):
     t = draw_tuple(tuple_list)
     v1 = t[0]
     v2 = t[1]
     # fix user, sample items
-    neg_sample_user_item(v1,v2,user_nei,0)
-    # fix item, sample users
-    neg_sample_user_item(v2,v1,item_nei,1)
+    neg_sample_user_item(v1,v2,user_nei)
 
 
 def training_group_item(tuple_list,group_nei,item_nei):
@@ -387,47 +413,52 @@ def training_group_item(tuple_list,group_nei,item_nei):
     # v1:group
     v1 = t[1]
     v2 = t[0]
-    while len(group_users.get(v1)) > 50:
-        t = draw_tuple(tuple_list)
-        # v1:group
-        v1 = t[1]
-        v2 = t[0]
     # fix group, sample items
-    neg_sample_group_item(v1,v2,group_nei,0)
-    neg_sample_group_item(v2, v1, item_nei, 1)
+    neg_sample_group_item(v1,v2,group_nei)
+
+
+def bernoilli():
+    r = random.random()
+    if r < ita: return 1
+    else:return 0
 
 # training
-def train_data():
-    iter = 0
-    last_count = 0
-    current_sample_count = 0
-    while iter <= N:
-        if iter-last_count > 10000:
-            current_sample_count += iter - last_count
-            last_count = iter
-            lr = init_lr * (1 - current_sample_count / (1.0 * (N + 1)))
-            print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
-            if lr < init_lr*0.0001:
-                lr = init_lr * 0.0001
-        if iter%5000000 == 0 and iter != 0 and iter != N:
-            # write embedding into file
-            write_to_file(out_user+str(iter),user_emb)
-            write_to_file(out_item+str(iter),item_emb)
-            write_to_file(out_luser+str(iter),luser_emb)
-            write_to_file(out_ruser+str(iter),ruser_emb)
-        training_user_item(all_edges_1,user_nei,itematuser_nei)
-        training_group_item(all_edges_2,group_nei,itematgroup_nei)
-        print("Iteration i:  %d finished." % iter)
-        if iter == 379:
-            print("stop")
-        iter += 1
+def train_data(type):
+    if type == 0:
+    elif type == 1:
+    else:
+        iter = 0
+        last_count = 0
+        current_sample_count = 0
+        while iter <= N:
+            if iter-last_count > 10000:
+                current_sample_count += iter - last_count
+                last_count = iter
+                lr = init_lr * (1 - current_sample_count / (1.0 * (N + 1)))
+                print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
+                if lr < init_lr*0.0001:
+                    lr = init_lr * 0.0001
+            if iter%5000000 == 0 and iter != 0 and iter != N:
+                # write embedding into file
+                write_to_file(out_user+str(iter),user_emb)
+                write_to_file(out_item+str(iter),item_emb)
+                write_to_file(out_luser+str(iter),luser_emb)
+                write_to_file(out_ruser+str(iter),ruser_emb)
+            if bernoilli():
+                training_group_item(all_edges_2, group_nei, itematgroup_nei)
+            else:
+                training_user_item(all_edges_1,user_nei)
+
+            print("Iteration i:  %d finished." % iter)
+            iter += 1
 
 
 if __name__=="__main__":
     get_pop_pro()
     init_all_vec()
     init_sigmod_table()
-    train_data()
+    # init_neg_table()
+    train_data(3)
     print("training finished")
     write_to_file(out_user,user_emb)
     write_to_file(out_item,item_emb)
