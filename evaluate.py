@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 import math
 from file_process import get_group_users
-from model import sigmoid
 test_group_event_file = "\\data\\dataset\\kaggle\\test_groupid_event_candis.dat"
 group_user_file = "\\data\\dataset\\kaggle\\test_groupid_users.dat"
 user_emb_file = "\\data\\vector\\kaggle\\user_emb.dat"
@@ -54,12 +53,27 @@ def cal_topk_list(group,event,candi_list,k):
     rec_events_dict[event] = group_emb.dot(item_emb.get(event))
     for candi in candi_list:
         rec_events_dict[candi] = group_emb.dot(item_emb.get(candi))
+    # 将推荐列表排序
+    sorted_rec_events_dict = sorted(rec_events_dict.items(), key=lambda d: d[1],reverse=True)
+    rank = hit = rr = 0
+    for t in sorted_rec_events_dict:
+        rank += 1
+        if event == t[0]:
+            if rank <= k:
+                hit = 1
+            rr = float(rank)/len(sorted_rec_events_dict)
+            break
+    return hit,rr
 
 
 if __name__=="__main__":
     top_k = [20,15,10,5,1]
     for k in top_k:
         df = pd.read_csv(test_group_event_file,sep="\t",names=["group","event","neg_candi"],engine="python")
+        avg_hit = MRR = 0.0
         for index,row in df.iterrows():
             candi_list = [ int(item) for item in str(row["neg_candi"]).strip().split(" ")]
-            topk_list = cal_topk_list(row["group"],row["event"],candi_list,k)
+            hit,rr = cal_topk_list(row["group"],row["event"],candi_list,k)
+            avg_hit += hit
+            MRR += rr
+        print("The avg hit ratio@%d is :%f,MRR is %f" % (k,avg_hit/len(df),MRR/len(df)))
