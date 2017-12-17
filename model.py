@@ -3,7 +3,6 @@ import numpy as np
 import random
 import math
 DIM = 50
-N = 100000000
 NEG_N = 2 #number of negative samples
 init_lr = 0.025
 lr = init_lr
@@ -71,6 +70,7 @@ out_ruser = "data/vectors/kaggle/ruser"
 #初始化所有边，所有顶点的度数以及所有顶点的邻居
 
 user_degree,itematuser_degree,user_nei,itematuser_nei,all_edges_1 = read_file(inputdata1,["userid","eventid"])
+N = len(all_edges_1)
 print("user-event finished.")
 itematgroup_degree,group_degree,itematgroup_nei,group_nei,all_edges_2 = read_file(inputdata2,["event","groupid"])
 print("group-event finished.")
@@ -505,7 +505,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr * 0.0001:
                     lr = init_lr * 0.0001
-            if iter % 5000000 == 0 and iter != 0 and iter != N:
+            if iter % (N/10.0) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_user + str(iter), user_emb)
                 write_to_file(out_item + str(iter), item_emb)
@@ -564,7 +564,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr * 0.0001:
                     lr = init_lr * 0.0001
-            if iter % 5000000 == 0 and iter != 0 and iter != N:
+            if iter % (N/10.0) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_user + str(iter), user_emb)
                 write_to_file(out_item + str(iter), item_emb)
@@ -585,7 +585,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr*0.0001:
                     lr = init_lr * 0.0001
-            if iter%5000000 == 0 and iter != 0 and iter != N:
+            if iter%(N/10.0) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_user+str(iter),user_emb)
                 write_to_file(out_item+str(iter),item_emb)
