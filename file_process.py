@@ -1,5 +1,7 @@
 import pandas as pd
 import os
+
+
 def read_file(inputfile,col_names,sep="\t"):
     df = pd.read_csv(inputfile,sep=sep,names=col_names,engine="python")
     all_tuples = list()
@@ -23,14 +25,6 @@ def read_file(inputfile,col_names,sep="\t"):
         else:
             ver2_neighbours[row[col_names[1]]].append(row[col_names[0]])
             ver2_num[row[col_names[1]]] += 1
-    # for i in col1:
-    #     # ver1_num[i] = len(df[df[col_names[0]]==i][col_names[1]])
-    #     ver1_neighbours[i] = list(df[df[col_names[0]]==i][col_names[1]])
-    #     ver1_num[i] = len(ver1_neighbours[i])
-    # for j in col2:
-    #     # ver2_num[j] = len(df[df[col_names[1]]==j][col_names[0]])
-    #     ver2_neighbours[j] = list(df[df[col_names[1]]==j][col_names[0]])
-    #     ver2_num[i] = len(ver2_neighbours[j])
     return ver1_num,ver2_num,ver1_neighbours,ver2_neighbours,all_tuples
 
 

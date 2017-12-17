@@ -55,13 +55,13 @@ sigmoid_table_size = 1000
 sig_map = dict()
 
 #input sample files
-inputdata1 = "data\\dataset\\kaggle\\sample_train_user_event.dat"
-inputdata2 = "data\\dataset\\kaggle\\sample_train_groupid_event.dat"
-inputdata3 = "data\\dataset\\kaggle\\sample_train_groupid_users.dat"
+# inputdata1 = "data/dataset/kaggle/sample_train_user_event.dat"
+# inputdata2 = "data/dataset/kaggle/sample_train_groupid_event.dat"
+# inputdata3 = "data/dataset/kaggle/sample_train_groupid_users.dat"
 #input files
-# inputdata1 = "data/dataset/kaggle/train_user_event.dat"
-# inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
-# inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
+inputdata1 = "data/dataset/kaggle/train_user_event.dat"
+inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
+inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
 out_user = "data/vectors/kaggle/user"
 out_item = "data/vectors/kaggle/item"
 out_luser = "data/vectors/kaggle/luser"
@@ -72,7 +72,7 @@ out_ruser = "data/vectors/kaggle/ruser"
 user_degree,itematuser_degree,user_nei,itematuser_nei,all_edges_1 = read_file(inputdata1,["userid","eventid"])
 N = len(all_edges_1)
 print("user-event finished.")
-itematgroup_degree,group_degree,itematgroup_nei,group_nei,all_edges_2 = read_file(inputdata2,["event","groupid"])
+group_degree,itematgroup_degree,group_nei,itematgroup_nei,all_edges_2 = read_file(inputdata2,["groupid","eventid"])
 print("group-event finished.")
 group_users = get_group_users(inputdata3,["groupid","users"])
 print("user set:%d ,item set:%d, group set:%d" %(len(user_degree.keys()),len(itematuser_degree.keys()),len(group_degree.keys())) )
@@ -478,10 +478,12 @@ def training_user_item(tuple_list,user_nei):
 
 
 def training_group_item(tuple_list,group_nei,type):
-    t = draw_tuple(tuple_list)
-    # v1:group
-    v1 = t[1]
-    v2 = t[0]
+    while True:
+        t = draw_tuple(tuple_list)
+        # v1:group
+        v1 = t[0]
+        v2 = t[1]
+        if len(group_users.get(v1)) < 10:break
     # fix group, sample items
     neg_sample_group_item(v1,v2,group_nei,type)
 
