@@ -33,7 +33,7 @@ pop_itematgroup_sample = list()
 # neg vertex sample table
 itematuser_neg_table = list()
 itematgroup_neg_table = list()
-neg_table_size = 1e8
+neg_table_size = int(1e8)
 neg_sampling_power = 0.75
 
 # vertex and its neighbours
@@ -56,17 +56,17 @@ sigmoid_table_size = 1000
 sig_map = dict()
 
 #input sample files
-# inputdata1 = "data\\dataset\\kaggle\\sample_train_user_event.dat"
-# inputdata2 = "data\\dataset\\kaggle\\sample_train_groupid_event.dat"
-# inputdata3 = "data\\dataset\\kaggle\\sample_train_groupid_users.dat"
+inputdata1 = "data\\dataset\\kaggle\\sample_train_user_event.dat"
+inputdata2 = "data\\dataset\\kaggle\\sample_train_groupid_event.dat"
+inputdata3 = "data\\dataset\\kaggle\\sample_train_groupid_users.dat"
 #input files
-inputdata1 = "data\\dataset\\kaggle\\train_user_event.dat"
-inputdata2 = "data\\dataset\\kaggle\\train_groupid_event.dat"
-inputdata3 = "data\\dataset\\kaggle\\train_groupid_users.dat"
-out_user = "data\\vectors\\kaggle\\user"
-out_item = "data\\vectors\\kaggle\\item"
-out_luser = "data\\vectors\\kaggle\\luser"
-out_ruser = "data\\vectors\\kaggle\\ruser"
+# inputdata1 = "data/dataset/kaggle/train_user_event.dat"
+# inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
+# inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
+out_user = "data/vectors/kaggle/user"
+out_item = "data/vectors/kaggle/item"
+out_luser = "data/vectors/kaggle/luser"
+out_ruser = "data/vectors/kaggle/ruser"
 
 #初始化所有边，所有顶点的度数以及所有顶点的邻居
 
@@ -84,25 +84,22 @@ itematgroup_list = list(itematgroup_degree.keys())
 
 # 初始化所有负采样表
 def init_vertex_neg_table(vertex_neg_table,vertex_degree,vertex_list):
-    sum = 0.0,
-    cur_num = 0.0
-    por = 0.0
+    sum = cur_num = por = 0.0
     vid = 0
-    for vertex, degree in vertex_degree:
+    for vertex, degree in vertex_degree.items():
         sum += math.pow(degree, neg_sampling_power)
     for k in range(neg_table_size):
         if float(k + 1) / neg_table_size > por:
             cur_num += math.pow(vertex_degree.get(vertex_list[vid]), neg_sampling_power)
             por = cur_num / sum
             vid += 1
-        vertex_neg_table[k] = vertex_list[vid - 1]
+        vertex_neg_table.append(vertex_list[vid - 1])
 
 
 # 初始化负采样表
 def init_neg_table():
     init_vertex_neg_table(itematuser_neg_table,itematuser_degree,itematuser_list)
     init_vertex_neg_table(itematgroup_neg_table, itematgroup_degree, itematgroup_list)
-
 
 
 def cal_pop_pro(vertex_list,vertex_degree,sample_list):
@@ -311,46 +308,6 @@ def update_item_vertex_in_group(source_emb,target,target_emb,error,label):
     item_emb[target] = new_vec
     # total error for puser , luser and ruser vertex
     error += g * target_emb
-    # for member1 in members:
-    #     # update every member's puser embedding
-    #     puser_error[member1] += member_weight_dict.get(member1) * g * target_emb
-    #     # update every member's luser and ruser embedding
-    #     sum_weight = cal_group_totalweight(members)
-    #     xr = np.zeros(DIM,)
-    #     for other_member in members:
-    #         if other_member != member1:
-    #             xr += ruser_emb.get(other_member)
-    #     g_luser_vector = np.zeros(DIM,)
-    #     for member2 in members:
-    #         if member1 == member2:
-    #             g_luser_vector += (xr*sum_weight-luser_emb.get(member1).dot(xr)*xr).dot(user_emb.get(member1))
-    #         else:
-    #             x_r = np.zeros(DIM,)
-    #             for member3 in members:
-    #                 if member3 != member2:
-    #                     x_r += ruser_emb.get(member3)
-    #             g_luser_vector += (0 - luser_emb.get(member2).dot(x_r)*xr).dot(user_emb.get(member2))
-    #     g_luser_error = (g_luser_vector / (sum_weight*sum_weight)).dot(target_emb)*g
-    #     luser_error[member1] = g_luser_error
-    #
-    #     xl = np.zeros(DIM, )
-    #     for other_member in members:
-    #         if other_member != member1:
-    #             xl += luser_emb.get(other_member)
-    #     g_ruser_vector = np.zeros(DIM, )
-    #     for member2 in members:
-    #         self_emb = np.zeros(DIM, )
-    #         for member in members:
-    #             if member != member2:
-    #                 self_emb += ruser_emb.get(member)
-    #         if member2 == member1:
-    #             self_emb = 0 - luser_emb.get(member2).dot(self_emb) * xl.dot(user_emb.get(member2))
-    #             g_ruser_vector += self_emb
-    #         else:
-    #             g_ruser_vector += (luser_emb.get(member2) * sum_weight - luser_emb.get(member2).dot(self_emb) * xl).dot(
-    #                 user_emb.get(member2))
-    #     g_ruser_error = ((g_ruser_vector / (sum_weight * sum_weight)).dot(target_emb))*g
-    #     ruser_error[member1] = g_ruser_error
 
 
 # two stage method version 1
@@ -477,13 +434,14 @@ def update_group_item(source,target,neg_vertices):
 # fix source, sample targets
 def neg_sample_user_item(source,target,source_nei):
     base_list = itematuser_list
-    base_sample = pop_itematuser_sample
+    # base_sample = pop_itematuser_sample
     # sample M negative vertices
     neg_vertices = list()
     record = 0
     while len(neg_vertices) < NEG_N:
         if record < len(base_list):
-            sample_v = draw_vertex(base_list,base_sample)
+            # sample_v = draw_vertex(base_list,base_sample)
+            sample_v = itematuser_neg_table[random.randint(0,neg_table_size-1)]
             if sample_v not in source_nei.get(source) and sample_v not in neg_vertices:
                 neg_vertices.append(sample_v)
         else: break
@@ -493,13 +451,14 @@ def neg_sample_user_item(source,target,source_nei):
 
 def neg_sample_group_item(source,target,source_nei,type):
     base_list = itematgroup_list
-    base_sample = pop_itematgroup_sample_dict.get(source)
+    # base_sample = pop_itematgroup_sample_dict.get(source)
     # sample M negative vertices
     neg_vertices = list()
     record = 0
     while len(neg_vertices) < NEG_N:
         if record < len(base_list):
-            sample_v = draw_vertex(base_list,base_sample)
+            # sample_v = draw_vertex(base_list,base_sample)
+            sample_v = itematgroup_neg_table[random.randint(0,neg_table_size-1)]
             if sample_v not in source_nei.get(source) and sample_v not in neg_vertices:
                 neg_vertices.append(sample_v)
         else: break
@@ -508,7 +467,6 @@ def neg_sample_group_item(source,target,source_nei,type):
         update_group_item(source,target,neg_vertices)
     else:
         update_group_item_twstage1(source,target,neg_vertices)
-
 
 
 def training_user_item(tuple_list,user_nei):
@@ -643,10 +601,12 @@ def train_data(type):
 
 
 if __name__=="__main__":
-    get_pop_pro()
+    # get_pop_pro()
+    init_neg_table()
+    print("initial neg table")
     init_all_vec()
     init_sigmod_table()
-    # init_neg_table()
+    print("training starting")
     train_data(3)
     print("training finished")
     write_to_file(out_user,user_emb)
