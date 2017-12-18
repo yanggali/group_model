@@ -70,7 +70,7 @@ out_ruser = "data/vectors/kaggle/ruser"
 #初始化所有边，所有顶点的度数以及所有顶点的邻居
 
 user_degree,itematuser_degree,user_nei,itematuser_nei,all_edges_1 = read_file(inputdata1,["userid","eventid"])
-N = len(all_edges_1)
+N = len(all_edges_1)*10
 print("user-event finished.")
 group_degree,itematgroup_degree,group_nei,itematgroup_nei,all_edges_2 = read_file(inputdata2,["groupid","eventid"])
 print("group-event finished.")
@@ -80,7 +80,7 @@ user_list = list(user_degree.keys())
 itematuser_list = list(itematuser_degree.keys())
 group_list = list(group_degree.keys())
 itematgroup_list = list(itematgroup_degree.keys())
-
+print("item size:%d" % len(itematuser_list))
 
 # 初始化所有负采样表
 def init_vertex_neg_table(vertex_neg_table,vertex_degree,vertex_list):
@@ -483,7 +483,7 @@ def training_group_item(tuple_list,group_nei,type):
         # v1:group
         v1 = t[0]
         v2 = t[1]
-        if len(group_users.get(v1)) < 10:break
+        if len(group_users.get(v1)) < 50:break
     # fix group, sample items
     neg_sample_group_item(v1,v2,group_nei,type)
 
@@ -527,7 +527,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr * 0.0001:
                     lr = init_lr * 0.0001
-            if iter % 5000000 == 0 and iter != 0 and iter != N:
+            if iter % (N/10) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_luser + str(iter), luser_emb)
                 write_to_file(out_ruser + str(iter), ruser_emb)
@@ -566,7 +566,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr * 0.0001:
                     lr = init_lr * 0.0001
-            if iter % (N/10.0) == 0 and iter != 0 and iter != N:
+            if iter % (N/10) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_user + str(iter), user_emb)
                 write_to_file(out_item + str(iter), item_emb)
@@ -587,7 +587,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr*0.0001:
                     lr = init_lr * 0.0001
-            if iter%(N/10.0) == 0 and iter != 0 and iter != N:
+            if iter%(N/10) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_user+str(iter),user_emb)
                 write_to_file(out_item+str(iter),item_emb)

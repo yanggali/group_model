@@ -6,13 +6,14 @@ import pandas as pd
 import numpy as np
 import math
 from file_process import get_group_users
-test_group_event_file = "\\data\\dataset\\kaggle\\test_groupid_event_candis.dat"
-group_user_file = "\\data\\dataset\\kaggle\\test_groupid_users.dat"
-user_emb_file = "\\data\\vector\\kaggle\\user_emb.dat"
-item_emb_file = "\\data\\vector\\kaggle\\item_emb.dat"
-luser_emb_file = "\\data\\vector\\kaggle\\luser_emb.dat"
-ruser_emb_file = "\\data\\vector\\kaggle\\ruser_emb.dat"
+test_group_event_file = "./data/dataset/kaggle/test_groupid_event_candis.dat"
+group_user_file = "./data/dataset/kaggle/test_groupid_users.dat"
+user_emb_file = "./data/vectors/kaggle/user485676"
+item_emb_file = "./data/vectors/kaggle/item485676"
+luser_emb_file = "./data/vectors/kaggle/luser485676"
+ruser_emb_file = "./data/vectors/kaggle/ruser485676"
 DIM = 50
+
 
 def get_emb(vertex_emb_file):
     df = pd.read_csv(vertex_emb_file,sep="\t",names=["vertex","emb"],engine="python")
@@ -20,6 +21,7 @@ def get_emb(vertex_emb_file):
     for index,row in df.iterrows():
         vertex_emb[row["vertex"]] = np.array(str(row["emb"]).strip().split(" ")).astype(np.float32)
     return vertex_emb
+
 
 user_emb = get_emb(user_emb_file)
 item_emb = get_emb(item_emb_file)
@@ -61,7 +63,7 @@ def cal_topk_list(group,event,candi_list,k):
         if event == t[0]:
             if rank <= k:
                 hit = 1
-            rr = float(rank)/len(sorted_rec_events_dict)
+            rr = 1/float(rank)
             break
     return hit,rr
 
