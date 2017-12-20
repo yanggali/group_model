@@ -31,7 +31,7 @@ pop_itematgroup_sample_dict = dict()
 pop_itematgroup_sample = list()
 # neg vertex sample table
 itematuser_neg_table = list()
-itematgroup_neg_table = list()
+itematgroup_neg_table = dict()
 neg_table_size = int(1e8)
 neg_sampling_power = 0.75
 
@@ -54,23 +54,29 @@ SIGMOID_BOUND = 6
 sigmoid_table_size = 1000
 sig_map = dict()
 
-#input sample files
-# inputdata1 = "data/dataset/kaggle/sample_train_user_event.dat"
-# inputdata2 = "data/dataset/kaggle/sample_train_groupid_event.dat"
-# inputdata3 = "data/dataset/kaggle/sample_train_groupid_users.dat"
 #input files
-inputdata1 = "data/dataset/kaggle/train_user_event.dat"
-inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
-inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
-out_user = "data/vectors/kaggle/user"
-out_item = "data/vectors/kaggle/item"
-out_luser = "data/vectors/kaggle/luser"
-out_ruser = "data/vectors/kaggle/ruser"
+# inputdata1 = "data/dataset/kaggle/train_user_event.dat"
+# inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
+# inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
+# out_user = "data/vectors/kaggle/user"
+# out_item = "data/vectors/kaggle/item"
+# out_luser = "data/vectors/kaggle/luser"
+# out_ruser = "data/vectors/kaggle/ruser"
 
-#初始化所有边，所有顶点的度数以及所有顶点的邻居
 
+#input files
+inputdata1 = "data/dataset/plancast/train_userid_eventid.dat"
+inputdata2 = "data/dataset/plancast/train_groupid_eventid.dat"
+inputdata3 = "data/dataset/plancast/train_groupid_userids.dat"
+out_user = "data/vectors/plancast/user"
+out_item = "data/vectors/plancast/item"
+out_luser = "data/vectors/plancast/luser"
+out_ruser = "data/vectors/plancast/ruser"
+
+# initialize all edges, all vertices' degree and all vertices' neighbours
 user_degree,itematuser_degree,user_nei,itematuser_nei,all_edges_1 = read_file(inputdata1,["userid","eventid"])
 N = len(all_edges_1)*10
+print("N is %d" % N)
 print("user-event finished.")
 group_degree,itematgroup_degree,group_nei,itematgroup_nei,all_edges_2 = read_file(inputdata2,["groupid","eventid"])
 print("group-event finished.")
@@ -82,7 +88,8 @@ group_list = list(group_degree.keys())
 itematgroup_list = list(itematgroup_degree.keys())
 print("item size:%d" % len(itematuser_list))
 
-# 初始化所有负采样表
+
+# initial negative sampling table
 def init_vertex_neg_table(vertex_neg_table,vertex_degree,vertex_list):
     sum = cur_num = por = 0.0
     vid = 0
@@ -96,10 +103,12 @@ def init_vertex_neg_table(vertex_neg_table,vertex_degree,vertex_list):
         vertex_neg_table.append(vertex_list[vid - 1])
 
 
-# 初始化负采样表
+# initial neg sampling table
 def init_neg_table():
+    # for user-event using negative sampling table
     init_vertex_neg_table(itematuser_neg_table,itematuser_degree,itematuser_list)
-    init_vertex_neg_table(itematgroup_neg_table, itematgroup_degree, itematgroup_list)
+    # for group-event using common table
+    cal_pop_pro_in_group(itematgroup_list, itematuser_nei, pop_itematgroup_sample_dict)
 
 
 def cal_pop_pro(vertex_list,vertex_degree,sample_list):
@@ -131,8 +140,7 @@ def cal_pop_pro_in_group(vertex_list,vertex_nei,group_sample_list_dict):
         group_sample_list_dict[group] = group_sample_list
 
 
-
-#initial sample table
+# initial sample table
 def get_pop_pro():
     cal_pop_pro(itematuser_list,itematuser_degree,pop_itematuser_sample)
     cal_pop_pro_in_group(itematgroup_list, itematuser_nei, pop_itematgroup_sample_dict)
@@ -202,7 +210,7 @@ def update_user_item_vertex(source,target,error,label):
     item_emb[target] = new_vec
 
 
-# 计算group的embedding
+# calculate groups' embedding
 def cal_group_emb(members):
     sum_weight = 0
     index_member_dict = {members.index(member): member for member in members}
@@ -451,14 +459,14 @@ def neg_sample_user_item(source,target,source_nei):
 
 def neg_sample_group_item(source,target,source_nei,type):
     base_list = itematgroup_list
-    # base_sample = pop_itematgroup_sample_dict.get(source)
+    base_sample = pop_itematgroup_sample_dict.get(source)
     # sample M negative vertices
     neg_vertices = list()
     record = 0
     while len(neg_vertices) < NEG_N:
         if record < len(base_list):
-            # sample_v = draw_vertex(base_list,base_sample)
-            sample_v = itematgroup_neg_table[random.randint(0,neg_table_size-1)]
+            sample_v = draw_vertex(base_list,base_sample)
+            # sample_v = itematgroup_neg_table[random.randint(0,neg_table_size-1)]
             if sample_v not in source_nei.get(source) and sample_v not in neg_vertices:
                 neg_vertices.append(sample_v)
         else: break
@@ -487,11 +495,11 @@ def training_group_item(tuple_list,group_nei,type):
     # fix group, sample items
     neg_sample_group_item(v1,v2,group_nei,type)
 
-
 def bernoilli():
     r = random.random()
     if r < ita: return 1
     else:return 0
+
 
 # training
 def train_data(type):
@@ -587,7 +595,7 @@ def train_data(type):
                 print("Iteration i:   " + str(iter) + "   ##########lr  " + str(lr))
                 if lr < init_lr*0.0001:
                     lr = init_lr * 0.0001
-            if iter%(N/10) == 0 and iter != 0 and iter != N:
+            if iter%(int(N/100)) == 0 and iter != 0 and iter != N:
                 # write embedding into file
                 write_to_file(out_user+str(iter),user_emb)
                 write_to_file(out_item+str(iter),item_emb)

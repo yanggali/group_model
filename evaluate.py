@@ -6,12 +6,19 @@ import pandas as pd
 import numpy as np
 import math
 from file_process import get_group_users
-test_group_event_file = "./data/dataset/kaggle/test_groupid_event_candis.dat"
-group_user_file = "./data/dataset/kaggle/test_groupid_users.dat"
-user_emb_file = "./data/vectors/kaggle/user485676"
-item_emb_file = "./data/vectors/kaggle/item485676"
-luser_emb_file = "./data/vectors/kaggle/luser485676"
-ruser_emb_file = "./data/vectors/kaggle/ruser485676"
+# test_group_event_file = "./data/dataset/kaggle/test_groupid_event_candis.dat"
+# group_user_file = "./data/dataset/kaggle/test_groupid_users.dat"
+# user_emb_file = "./data/vectors/kaggle/user485676"
+# item_emb_file = "./data/vectors/kaggle/item485676"
+# luser_emb_file = "./data/vectors/kaggle/luser485676"
+# ruser_emb_file = "./data/vectors/kaggle/ruser485676"
+# plancast
+test_group_event_file = "./data/dataset/plancast/test_groupid_eventid_candis.dat"
+group_user_file = "./data/dataset/plancast/test_groupid_userids.dat"
+user_emb_file = "./data/vectors/plancast/user2612096"
+item_emb_file = "./data/vectors/plancast/item2612096"
+luser_emb_file = "./data/vectors/plancast/luser2612096"
+ruser_emb_file = "./data/vectors/plancast/ruser2612096"
 DIM = 50
 
 
