@@ -15,10 +15,10 @@ from file_process import get_group_users
 # plancast
 test_group_event_file = "./data/dataset/plancast/test_groupid_eventid_candis.dat"
 group_user_file = "./data/dataset/plancast/test_groupid_userids.dat"
-user_emb_file = "./data/vectors/plancast/user2612096"
-item_emb_file = "./data/vectors/plancast/item2612096"
-luser_emb_file = "./data/vectors/plancast/luser2612096"
-ruser_emb_file = "./data/vectors/plancast/ruser2612096"
+user_emb_file = "./data/vectors/plancast/user1000000"
+item_emb_file = "./data/vectors/plancast/item1000000"
+luser_emb_file = "./data/vectors/plancast/luser1000000"
+ruser_emb_file = "./data/vectors/plancast/ruser1000000"
 DIM = 50
 
 
@@ -54,7 +54,7 @@ def cal_group_emb(members):
     return group_emb
 
 
-# 计算topk下的hit ratio以及MRR
+# calculate topk hit ratio and MRR
 def cal_topk_list(group,event,candi_list,k):
     members = group_users.get(group)
     group_emb = cal_group_emb(members)
@@ -62,7 +62,7 @@ def cal_topk_list(group,event,candi_list,k):
     rec_events_dict[event] = group_emb.dot(item_emb.get(event))
     for candi in candi_list:
         rec_events_dict[candi] = group_emb.dot(item_emb.get(candi))
-    # 将推荐列表排序
+    # sort recommendation list
     sorted_rec_events_dict = sorted(rec_events_dict.items(), key=lambda d: d[1],reverse=True)
     rank = hit = rr = 0
     for t in sorted_rec_events_dict:

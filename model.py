@@ -1,7 +1,9 @@
 from file_process import read_file,get_group_users,write_to_file
+from evaluate import get_emb
 import numpy as np
 import random
 import math
+import re
 DIM = 50
 NEG_N = 2 #number of negative samples
 init_lr = 0.025
@@ -31,7 +33,7 @@ pop_itematgroup_sample_dict = dict()
 pop_itematgroup_sample = list()
 # neg vertex sample table
 itematuser_neg_table = list()
-itematgroup_neg_table = dict()
+itematgroup_neg_table = list()
 neg_table_size = int(1e8)
 neg_sampling_power = 0.75
 
@@ -55,23 +57,26 @@ sigmoid_table_size = 1000
 sig_map = dict()
 
 #input files
-# inputdata1 = "data/dataset/kaggle/train_user_event.dat"
-# inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
-# inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
-# out_user = "data/vectors/kaggle/user"
-# out_item = "data/vectors/kaggle/item"
-# out_luser = "data/vectors/kaggle/luser"
-# out_ruser = "data/vectors/kaggle/ruser"
-
+inputdata1 = "data/dataset/kaggle/train_user_event.dat"
+inputdata2 = "data/dataset/kaggle/train_groupid_event.dat"
+inputdata3 = "data/dataset/kaggle/train_groupid_users.dat"
+out_user = "data/vectors/kaggle/user"
+out_item = "data/vectors/kaggle/item"
+out_luser = "data/vectors/kaggle/luser"
+out_ruser = "data/vectors/kaggle/ruser"
+init_user = "data/vectors/kaggle/user2000000"
+init_item = "data/vectors/kaggle/item2000000"
+init_luser = "data/vectors/kaggle/luser2000000"
+init_ruser = "data/vectors/kaggle/ruser2000000"
 
 #input files
-inputdata1 = "data/dataset/plancast/train_userid_eventid.dat"
-inputdata2 = "data/dataset/plancast/train_groupid_eventid.dat"
-inputdata3 = "data/dataset/plancast/train_groupid_userids.dat"
-out_user = "data/vectors/plancast/user"
-out_item = "data/vectors/plancast/item"
-out_luser = "data/vectors/plancast/luser"
-out_ruser = "data/vectors/plancast/ruser"
+# inputdata1 = "data/dataset/plancast/train_userid_eventid.dat"
+# inputdata2 = "data/dataset/plancast/train_groupid_eventid.dat"
+# inputdata3 = "data/dataset/plancast/train_groupid_userids.dat"
+# out_user = "data/vectors/plancast/user"
+# out_item = "data/vectors/plancast/item"
+# out_luser = "data/vectors/plancast/luser"
+# out_ruser = "data/vectors/plancast/ruser"
 
 # initialize all edges, all vertices' degree and all vertices' neighbours
 user_degree,itematuser_degree,user_nei,itematuser_nei,all_edges_1 = read_file(inputdata1,["userid","eventid"])
@@ -105,10 +110,12 @@ def init_vertex_neg_table(vertex_neg_table,vertex_degree,vertex_list):
 
 # initial neg sampling table
 def init_neg_table():
+    init_vertex_neg_table(itematgroup_neg_table, itematgroup_degree, itematgroup_list)
+
     # for user-event using negative sampling table
     init_vertex_neg_table(itematuser_neg_table,itematuser_degree,itematuser_list)
     # for group-event using common table
-    cal_pop_pro_in_group(itematgroup_list, itematuser_nei, pop_itematgroup_sample_dict)
+    # cal_pop_pro_in_group(itematgroup_list, itematuser_nei, pop_itematgroup_sample_dict)
 
 
 def cal_pop_pro(vertex_list,vertex_degree,sample_list):
@@ -159,6 +166,14 @@ def init_vec(vec_list,vec_emb_dict):
         vec_emb_dict[vec] = gen_gaussian()
 
 
+def math_exp(x):
+    try:
+        ans = math.exp(x)
+    except OverflowError:
+        ans = float('inf')
+    return ans
+
+
 # initial vertices' embedding
 def init_all_vec():
     init_vec(user_list,user_emb)
@@ -171,10 +186,22 @@ def init_all_vec():
     init_vec(useratgroup_list, ruser_emb)
 
 
+def init_vec_fromfile(emb_file,vertice_emb):
+    vertice_emb = get_emb(emb_file)
+
+
+def init_all_vec_fromfile():
+    iter = int(re.findall(r"\d+\.?\d*", init_user)[0])
+    init_vec_fromfile(init_user,user_emb)
+    init_vec_fromfile(init_item,item_emb)
+    init_vec_fromfile(init_luser,luser_emb)
+    init_vec_fromfile(init_ruser,ruser_emb)
+
+
 def init_sigmod_table():
     for k in range(sigmoid_table_size):
         x = 2*SIGMOID_BOUND*k/sigmoid_table_size-SIGMOID_BOUND
-        sig_map[k] = 1/(1+math.exp(-x))
+        sig_map[k] = 1/(1+math_exp(-x))
 
 
 # sample an edge randomly
@@ -223,7 +250,7 @@ def cal_group_emb(members):
         member_weight_dict[member1] = 0
         for member2 in members:
             if member1 != member2:
-                weight = math.exp(luser_emb.get(member1).dot(ruser_emb.get(member2)))
+                weight = math_exp(luser_emb.get(member1).dot(ruser_emb.get(member2)))
                 weight_matrix[member_index_dict[member1]][member_index_dict[member2]] = weight
                 sum_weight += weight
                 member_weight_dict[member1] += weight
